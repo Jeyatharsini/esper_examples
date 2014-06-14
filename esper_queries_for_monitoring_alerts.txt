@@ -1,0 +1,8 @@
+
+
+/**
+	The below pattern will trigger an event when there are 5 DB CALL THRESHOLD BREACHES in the last 100 seconds 
+
+*/
+every e1=MonitorEvent(event="DB_CALL_THRESHOLD_BREACHED", serverIP="192.168.250.240") -> [4] e2=EsperBean(event="DB_CALL_THRESHOLD_BREACHED", serverIP="192.168.250.240") where timer:within(100 sec)
+

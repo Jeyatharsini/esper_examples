@@ -1,0 +1,205 @@
+/** simplest example */
+select * from EsperBean
+
+/** the eql will maintain  a length of 5 events */
+select * from EsperBean.win:length(5)
+
+/** the eql will store a event for 4 sec */
+select * from EsperBean.win:time(4 sec)
+
+/** the eql will batch the output and every 4 seconds */
+select * from EsperBean.win:time_batch(4 sec)
+
+/** the eql will store in its stream only those EsperBean s where numberOfNormalAttributes > 200 */
+select * from EsperBean(numberOfNormalAttributes>=200)
+
+/** same as above, but adding more than 1 filters */
+select * from EsperBean(numberOfNormalAttributes>=200, numberOfWarningAttributes >=300)
+
+/** the eql will store all  in its stream but will display(update)  only those EsperBean s where numberOfNormalAttributes > 200 */
+select * from EsperBean where numberOfNormalAttributes >= 200
+
+/** same as above, but adding more than 1 filters */
+select * from EsperBean where numberOfNormalAttributes >= 200 AND numberOfWarningAttributes >=300
+
+/** the query will select only some attributes instead of *, here the updateListener will have a MapEventBean */
+select numberOfNormalAttributes, numberOfWarningAttributes from EsperBean where numberOfNormalAttributes >= 200 AND numberOfWarningAttributes >=300
+
+/** update when there are 2 events in the window*/
+select count(*)  from EsperBean.win:length(2) having count(*) = 2
+
+select serverIP  from EsperBean.std:groupwin(serverIP).win:length(5)
+
+/** the eql will return the sum of all the events that are present in the window */
+select sum(numberOfNormalAttributes) from EsperBean.win:length(5)
+
+/** Example for a group by */
+select serverIP, sum(numberOfNormalAttributes) as sumCount from EsperBean.win:length(5) group by serverIP
+
+select serverIP,,sum(numberOfNormalAttributes) as sumCount from EsperBean.win:length(5) group by serverIP
+
+select serverIP from EsperBean.win:time(30 sec) group by serverIP having sum(numberOfNormalAttributes) > 1000
+
+/** every pattern where some conditions are met */
+every (esperEvent1=EsperBean(numberOfNormalAttributes>200) or esperEvent2=EsperBean(serverIP="1.1.1.1"))
+
+every esperEvent1=EsperBean -> esperEvent2=EsperBean(serverIP = a.serverIP) where timer:within(1 min)
+
+/** this pattern will look only for the first EsperBean and then stop looking */
+EsperBean
+
+/** this pattern will create a subexpression every time an EsperBean event is generated */
+every  EsperBean
+
+every EsperBean -> (EsperBean -> EsperBean ->EsperBean -> EsperBean where timer:within(100 sec))
+
+every e1=EsperBean -> [4] e2=EsperBean where timer:within(100 sec)
+
+every-distinct(esperBean1.serverIP) esperBean1=EsperBean(serverIP=\"1.1.1.1\") -> ([2] EsperBean(serverIP=\"1.1.1.1\") until timer:interval(30 sec))
+
+/** example  A1 B1 C1 B2 A2 D1 A3 B3 E1 A4 F1 B4 */
+
+every (A -> B)
+every A -> B
+A -> every B
+every A-> every B
+
+every (e1=EsperBean and not EsperBean(serverIP=\"1.1.1.1\"))
+every e1=EsperBean -> (e2=EsperBean and not EsperBean(serverIP=\"1.1.1.1\"))
+every timer:interval(1 sec) -> (e1=EsperBean)
+every timer:interval(1 sec) -> (e1=EsperBean and not timer:interval(1 sec))
+every timer:interval(1 sec) -> (e1=EsperBean where timer:within(1 sec))
+
+
+every-distinct(e1.serverIP) e1=EsperBean
+every-distinct(e1.serverIP, e2.serverName) (e1=EsperBean and e2=EsperBeanTwo)
+every-distinct(e1.serverIP) e1=EsperBean -> e2=EsperBeanTwo(e1.serverIP = e2.serverIP)
+every-distinct(e1.serverIP, 10 seconds) e1=EsperBean
+
+e1=EsperBean until EsperBeanTwo
+(e1=EsperBean or e2=EsperBeanTwo) until timer:interval(10 sec)
+every (timer:interval(10 sec) and not e1=EsperBean)
+
+/** every A that is not followed by a B with in 5 min */
+every e1=EsperBean -> (timer:interval(5 min) and not e2=EsperBean)
+
+
+(every e1=EsperBean) where timer.within(10 sec)
+
+select distinct serverIP from EsperBean output every 10 seconds
+
+select serverIP from EsperBean.win:time(60 sec) output every 5 events order by numberOfNormalAttributes
+
+select * from EsperBean output snapshot every 1 minute order by count(*) desc limit 10
+
+select * from EsperBean output snapshot every 1 minute order by count(*) desc limit 10 offset 2  //starts from 3rd event (array start index is 0)
+
+/*sub query without correlation */
+select serverIP, (select serverName from EsperBean.std:lastevent())  as EsperBean from EsperBean
+
+/* sub query with correlation */
+select * from EsperBean as e1 where e1.serverIP =
+(select name from EsperBean.std:unique(serverIP) where serverIP = e1.serverIP)
+
+
+
+KeyWords
+
+exists :: 
+
+select serverIP from EsperBean as esperBean1 where exists (select * from EsperBean.std:unique(serverIP) where serverIP = esperBean1.serverIP)
+
+in:: 
+
+select serverIP from EsperBean as esperBean1 where serverIP in (select serverIP from EsperBean.win:time(10 min))
+
+not in :: 
+
+select serverIP from EsperBean as esperBean1 where serverIP not in (select serverIP from EsperBean.win:time(10 min))
+
+any:: 
+
+select * from EsperBean as esperbean1 where serverIP = any  (select serverIP from EsperBean.win:keepall())
+some ::same as any
+
+all :: select * from EsperBean as esperbean1 where serverIP = all  (select serverIP from EsperBean.win:keepall())
+
+
+Named Windows
+
+/** create a named window with events of type EsperBean */
+create window EsperBeanNamedWindow.win:keepall() as EsperBean
+
+/** create a named window that has 3columns  all from EsperBean  */
+create window EsperBeanNamedWindow.win:time(30 sec) as select serverIP, serverName, numberOfNormalAttributes from EsperBean
+
+/** another example same as above (we can use constants) */
+create window EsperBeanNamedWindow.win:time(30 sec) as select symbol as serverIP, serverName as serverName, numberOfNormalAttributes, 1 as eventID from EsperBean
+
+/** selecting from named window */
+select * from EsperBeanNamedWindow
+
+/** Selecting a record on trigger */
+on EsperBean select esperBean.* from EsperBeanNamedWindow as esperBean 
+
+/** this will return both esperBean and esperBean1 */
+on EsperBean as esperBean select * from EsperBeanNamedWindow as esperBean1       
+
+/** select query on trigger */ 
+on EsperBean(numberOfNormalAttributes>0) as esperBeanOne select esperBeanOne.serverIP, esperBeanOne.serverName, esperBeanOne.numberOfNormalAttributes from EsperBeanNamedWindow as esperBeanTwo where esperBeanOne.serverIP = esperBeanTwo.serverIP
+
+on EsperBean as esperBeanOne insert into EsperBeanNamedWindow select win.* from EsperBeanNamedWindow as esperBeanTwo
+
+/** insert everythingfrom  OrdersNamedWindow to ScratchOrders ( it is a named window )*/
+create window EsperBeanNamedWindowTwo.win:keepall() as EsperBeanNamedWindow insert
+
+create window EsperBeanNamedWindowTwo.win:time(10) as EsperBeanNamedWindow insert where serverIP = '1.1.1.1'
+
+/** insert on trigger */
+insert into EsperBeanNamedWindow(serverIP, serverName, numberOfNormalAttributes) select serverIP, serverName, numberOfNormalAttributes from EsperBean
+
+
+on EsperBean update EsperBeanNamedWindow set serverIP = "5.5.5.5"
+on EsperBean update EsperBeanNamedWindow set serverIP = "5.5.5.5" where numberOfNormalAttributes <= 0
+
+
+
+on EsperBean delete from EsperBeanNamedWindow
+on EsperBean delete from EsperBeanNamedWindow  where numberOfNormalAttributes <= 0
+
+on pattern [every timer:interval(10 sec)] delete from EsperBeanNamedWindow
+on pattern [every esperBean=EsperBean(volume>0) or every esperBeanTwo=EsperBean] delete from EsperBeanNamedWindow as esperBeanThree where esperBean.serverIP = esperBeanThree.serverIP or esperBeanTwo.serverName = esperBeanThree.serverName
+
+
+select esperBean.serverIP as serverIP, esperBean.serverName as serverName from pattern[every esperBean=EsperBean where timer:within(10 sec)]
+
+
+
+5.4.4. Multiple Data Window Views
+5.12. Joining Event Streams
+
+insert into TickNewStream select tick, news, MyLib.compute(news, tick) as result from StockTick.win:time(10) as tick, News.win:time(10) as news
+where tick.symbol = news.symbol
+
+select tick.price, news.text, result from TickNewStream
+
+
+
+
+every e1=EsperBean(uei='"+EXCEEDED+"') -> (timer:interval(5 sec) and not EsperBean(uei='"+REARMED+"'));
+
+every e1=EsperBean(uei='"+ALARMEXCEEDED+"') -> e2=EsperBean(uei='"+REARMED+"')
+
+
+
+
+
+A -> (D and not (B or C))
+/** all  A events that are not preceded by B with in 5 mins */
+every (timer:interval(5 min) and not B -> A)
+
+ 
+
+create window SecurityEvent.win:time(30 sec) (ipAddress string, userId String, numAttempts int, properties String[])
+create schema SecurityData (name String, roles String[])
+create window SecurityEvent.win:time(30 sec) (ipAddress string, userId String, secData SecurityData, historySecData SecurityData[])
